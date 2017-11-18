@@ -1,23 +1,3 @@
-lighDB - light and easy to use embed database written on C99. It has minimal memory footprint and very fast. It designed to work on MCU, but can work everywhere.
-
-#Alternatives
-* [KissDB](https://github.com/adamierymenko/kissdb) - awesome DB, but only key-value, caches hashtable, uses dynamic memory allocation. Only key-value.
-* [PureDB](https://github.com/jedisct1/PureDB) - good DB too, but DB creation, write & read is separated from each other. Uses dynamic memory allocation. Only key-value.
-
-#Pros
-* C99
-* Does not require dynamic allocation - only one small static buffer
-* IO functions wrapped up. Doesn't requires STD read, write and etc - so you can use any other FS lib, like Elm Chan FATFS or etc.
-* Index or ID or hash addressinga
-* You can write and read at any time
-* Mutexes
-
-#Cons
-* No search through data only IDs or hashes
-
-
-# LICENSE
-
 BSD 2-Clause License
 
 Copyright (c) 2017, Alexander Lutsai
