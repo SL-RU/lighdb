@@ -1,10 +1,13 @@
 #ifndef LIGHDB_CONF_H
 #define LIGHDB_CONF_H
 
-//USE_STDIO == 1 enables STDIO implementation of ldb_io_* so you don't need to do it in your code. If == 0 then can implement that functions by yourslef 
-#define LIGHDB_USE_STDIO 1
-#define LDB_FILE
+//change for your file system library. F.e. for ElmChan's FatFS define LDB_FILE FIL. For STDIO it will be int
+#define LDB_FILE int
 
+//Will library be read only
+#define LDB_READ_ONLY 0
+
+//Change to 1 if you want use mutexes and change defines below and implement functions
 #define LDB_MUTEX 0
 
 #if LDB_MUTEX == 1
