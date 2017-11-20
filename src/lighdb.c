@@ -68,11 +68,9 @@ LDB_RES ldb_open(LighDB *db,
 	}
     
     //calculate buffer size
-    *buffer_size = db->h.item_size * 2 + LDB_MIN_ID_BUFF;
+    *buffer_size = LDB_MIN_ID_BUFF;
     db->data_offset = 10;
     //clear buffer pointers
-    db->buffer1   = 0;
-    db->buffer2   = 0;
     db->buffer_id = 0;
     db->buffer_id_size = 0;
     return LDB_OK;
@@ -85,8 +83,6 @@ LDB_RES ldb_close(LighDB *db)
     if(db->opened == 0)
 	return LDB_ERR_NOT_OPENED;
     db->opened    = 0;
-    db->buffer1   = 0;
-    db->buffer2   = 0;
     db->buffer_id = 0;
     db->buffer_id_size = 0;
 
@@ -100,20 +96,18 @@ LDB_RES ldb_close(LighDB *db)
     return LDB_OK;
 }
 
-LDB_RES ldb_set_buffer(LighDB *db, uint8_t *buffer, uint32_t size)
+LDB_RES ldb_set_buffer(LighDB *db, uint32_t *buffer, uint32_t size)
 {
     if(db == 0 || buffer == 0)
 	return LDB_ERR_ZERO_POINTER;
     if(db->opened == 0)
 	return LDB_ERR_NOT_OPENED;
 
-    if(size <= db->h.item_size * 2 + LDB_MIN_ID_BUFF)
+    if(size <= LDB_MIN_ID_BUFF)
 	return LDB_ERR_SMALL_BUFFER;
 
-    db->buffer1 = buffer;
-    db->buffer2 = buffer + db->h.item_size;
-    db->buffer_id = buffer + db->h.item_size * 2;
-    db->buffer_id_size = size - db->h.item_size * 2;
+    db->buffer_id = (uint32_t*)buffer;
+    db->buffer_id_size = size;
     return LDB_OK;
 }
 #if !LDB_READ_ONLY
@@ -145,7 +139,7 @@ LDB_RES ldb_create(LighDB *db, char *path_data, char *path_index,
     uint32_t bw;
     //write db header
     if(ldb_io_write(&db->file_index,
-		   (uint8_t*)&db->h, sizeof(db->h), &bw)) {
+		    (uint8_t*)&db->h, sizeof(db->h), &bw)) {
 	ldb_io_close(&db->file_index);
 	return LDB_ERR_IO;
     }
@@ -156,7 +150,7 @@ LDB_RES ldb_create(LighDB *db, char *path_data, char *path_index,
     }
     //write user header
     if(ldb_io_write(&db->file_index,
-		   header, header_size, &bw)) {
+		    header, header_size, &bw)) {
 	ldb_io_close(&db->file_index);
 	return LDB_ERR_IO;
     }
@@ -186,8 +180,6 @@ LDB_RES ldb_create(LighDB *db, char *path_data, char *path_index,
     //calculate buffer size
     *buffer_size = db->h.item_size * 2 + LDB_MIN_ID_BUFF;
     //clear buffer pointers
-    db->buffer1   = 0;
-    db->buffer2   = 0;
     db->buffer_id = 0;
     db->buffer_id_size = 0;
     return LDB_OK;
@@ -199,7 +191,7 @@ inline static LDB_RES chk_db(LighDB *db)
 	return LDB_ERR_ZERO_POINTER;
     if(db->opened == 0)
 	return LDB_ERR_NOT_OPENED;
-    if(db->buffer1 == 0)
+    if(db->buffer_id == 0)
 	return LDB_ERR_NO_BUFFER;
     return LDB_OK;
 }
@@ -209,12 +201,16 @@ LDB_RES ldb_get(LighDB *db, uint32_t id,
     LDB_RES r;
     if((r = chk_db(db)))
 	return r;
-    if(buf == 0)
-	return LDB_ERR_ZERO_POINTER;
-    if(size == 0)
-	return LDB_ERR_SMALL_BUFFER;
 
-    return LDB_OK;
+    uint32_t index, count;
+    //find first element with ID
+    r = ldb_find_by_id(db, id, &count, &index, 1);
+    if(r != LDB_OK && r != LDB_OK_SMALL_BUFFER)
+	return LDB_ERR_NO_ID;
+    if(count == 0) //if 0 elements found
+	return LDB_ERR_NO_ID;
+    
+    return ldb_get_ind(db, index, buf, size);
 }
 
 #if !LDB_READ_ONLY
@@ -224,14 +220,29 @@ LDB_RES ldb_upd(LighDB *db, uint32_t id,
     LDB_RES r;
     if((r = chk_db(db)))
 	return r;
-    if(data == 0)
-	return LDB_ERR_ZERO_POINTER;
-    if(size == 0)
-	return LDB_ERR_SMALL_BUFFER;
-
-    return LDB_OK;
+    
+    uint32_t index, count;
+    //find first element with ID
+    r = ldb_find_by_id(db, id, &count, &index, 1);
+    if(r != LDB_OK && r != LDB_OK_SMALL_BUFFER)
+	return LDB_ERR_NO_ID;
+    if(count == 0) //if 0 elements found
+	return LDB_ERR_NO_ID;
+    
+    return ldb_upd_ind(db, index, data, size);
 }
 #endif
+static LDB_RES ldb_seek_ind_data(LighDB *db, uint32_t index)
+{
+    if(index >= db->h.count)
+	return LDB_BIG_INDEX;
+    if(ldb_io_lseek(&db->file_data,
+		    db->data_offset +
+		    (db->h.item_size * index),
+		    SEEK_SET))
+	return LDB_ERR_IO;
+    return LDB_OK;
+}
 LDB_RES ldb_get_ind(LighDB *db, uint32_t index,
 		    uint8_t *buf, uint32_t size)
 {
@@ -240,8 +251,15 @@ LDB_RES ldb_get_ind(LighDB *db, uint32_t index,
 	return r;
     if(buf == 0)
 	return LDB_ERR_ZERO_POINTER;
-    if(size == 0)
+    if(size < db->h.item_size)
 	return LDB_ERR_SMALL_BUFFER;
+
+    
+    if((r = ldb_seek_ind_data(db, index)))
+	return r;
+    uint32_t br;
+    if(ldb_io_read(&db->file_data, buf, db->h.item_size, &br))
+	return LDB_ERR_IO;
 
     return LDB_OK;
 }
@@ -254,9 +272,15 @@ LDB_RES ldb_upd_ind(LighDB *db, uint32_t index,
 	return r;
     if(data == 0)
 	return LDB_ERR_ZERO_POINTER;
-    if(size == 0)
+    if(size < db->h.item_size)
 	return LDB_ERR_SMALL_BUFFER;
 
+    if((r = ldb_seek_ind_data(db, index)))
+	return r;
+    uint32_t bw;
+    if(ldb_io_write(&db->file_data, data, db->h.item_size, &bw))
+	return LDB_ERR_IO;
+    
     return LDB_OK;    
 }
 
@@ -266,8 +290,23 @@ LDB_RES ldb_add(LighDB *db,
 {
     LDB_RES r;
     if((r = chk_db(db)))
-	return r;
+    	return r;
+    if(data == 0)
+	return LDB_ERR_ZERO_POINTER;
+    if(size < db->h.item_size)
+	return LDB_ERR_SMALL_BUFFER;
 
+    if(ldb_io_lseek(&db->file_data,
+		    db->data_offset +
+		    (db->h.item_size * db->h.count),
+		    SEEK_SET))
+	return LDB_ERR_IO;
+    uint32_t bw;
+    if(ldb_io_write(&db->file_data, data, db->h.item_size, &bw))
+	return LDB_ERR_IO;
+
+    
+    
     return LDB_OK;    
 }
 #endif

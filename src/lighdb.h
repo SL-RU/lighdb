@@ -43,15 +43,17 @@
 #endif
 
 typedef enum {
-    LDB_OK = 0,
-    LDB_ERR,
-    LDB_ERR_IO,
-    LDB_ERR_HEADER,
-    LDB_ERR_NO_BUFFER,
-    LDB_ERR_NOT_OPENED,
-    LDB_OK_SMALL_BUFFER,
-    LDB_ERR_SMALL_BUFFER,
-    LDB_ERR_ZERO_POINTER,
+    LDB_OK = 0,          //Everything ok
+    LDB_ERR,             //Undefined error
+    LDB_ERR_IO,          //Error in IO function
+    LDB_BIG_INDEX,       //Index >= total count
+    LDB_ERR_NO_ID,       //No ID in ID table
+    LDB_ERR_HEADER,      //Error in database header
+    LDB_ERR_NO_BUFFER,   //if buffer wasn't been set
+    LDB_ERR_NOT_OPENED,  //if db wasn't been opened
+    LDB_OK_SMALL_BUFFER, //Small buffer, but it is okay
+    LDB_ERR_SMALL_BUFFER,//Small buffer size in argument
+    LDB_ERR_ZERO_POINTER,//Zero pointer in arg
 } LDB_RES;
 
 
@@ -134,9 +136,7 @@ typedef struct {
     uint32_t index_offset; //offset of ID data in file_index
     uint32_t data_offset; //offset of data in file_data
     //buffers
-    uint8_t *buffer1;
-    uint8_t *buffer2;
-    uint8_t *buffer_id;
+    uint32_t *buffer_id;
     uint32_t buffer_id_size;
     
 #if LDB_MUTEX
@@ -152,7 +152,7 @@ typedef struct {
  * @param db pointer to DB structure
  * @param path_index path to index file of DB
  * @param path_data path to data file of DB
- * @param buffer_size returns buffer size for DB functionality. You need to set buffer using ldb_set_buffer(); Size equals [(size of item) * 2 + N] bytes. N byte for buffer of indexes, more is better. But not less then LDB_MIN_ID_BUFF bytes
+ * @param buffer_size returns buffer size for DB functionality. You need to set buffer using ldb_set_buffer(); Size equals [N] bytes. N byte for buffer of indexes, more is better. But not less then LDB_MIN_ID_BUFF bytes
  * @return result LDB_OK, LDB_ERR, LDB_ERR_IO
  */
 LDB_RES ldb_open(LighDB *db,
@@ -171,10 +171,10 @@ LDB_RES ldb_close(LighDB *db);
  *
  * @param db pointer to DB structure 
  * @param buffer buffer
- * @param size size of buffer
+ * @param size size of buffer in bytes
  * @retur result LDB_OK, LDB_ERR_SMALL_BUFFER
  */
-LDB_RES ldb_set_buffer(LighDB *db, uint8_t *buffer, uint32_t size);
+LDB_RES ldb_set_buffer(LighDB *db, uint32_t *buffer, uint32_t size);
 #if !LDB_READ_ONLY
 /**
  * Create new database
@@ -185,7 +185,7 @@ LDB_RES ldb_set_buffer(LighDB *db, uint8_t *buffer, uint32_t size);
  * @param size size of a single item's data
  * @param header_size size of header
  * @param header header buffer
- * @param buffer_size returns buffer size for DB functionality. You need to set buffer using ldb_set_buffer(); Size equals [(size of data) * 2 + N] bytes. N byte for buffer of indexes, more is better. But not less then LDB_MIN_ID_BUFF bytes
+ * @param buffer_size returns buffer size for DB functionality. You need to set buffer using ldb_set_buffer(); Size equals [N] bytes. N byte for buffer of indexes, more is better. But not less then LDB_MIN_ID_BUFF bytes
  * @return result LDB_OK, LDB_ERR_IO
  */
 LDB_RES ldb_create(LighDB *db, char *path_data, char *path_index,
@@ -263,7 +263,8 @@ LDB_RES ldb_add(LighDB *db,
  * @param len length of array. Can be 0. If len>0 and  (real count)<len then count will be equal to len and will be returned LDB_OK_SMALL_BUFFER.
  * @return result LDB_OK, LDB_ERR_IO, LDB_OK_SMALL_BUFFER
  */
-LDB_RES ldb_find_by_id(LighDB *db, uint32_t *count,
+LDB_RES ldb_find_by_id(LighDB *db, uint32_t id,
+		       uint32_t *count,
 		       uint32_t *list, uint32_t len);
 LDB_RES ldb_get_header(LighDB *db, uint8_t *buf, uint32_t size, uint32_t *readed);
 #if !LDB_READ_ONLY
