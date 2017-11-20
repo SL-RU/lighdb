@@ -10,8 +10,7 @@ LDB_RES ldb_open(LighDB *db,
 	return LDB_ERR_ZERO_POINTER;
 
     //open index file
-    if(ldb_io_open(&db->file_index, path_index)) {
-	ldb_io_close(&db->file_index);
+    if(ldb_io_open(&db->file_index, path_index, 0)) {
 	return LDB_ERR_IO;
     }
     //set db opened
@@ -37,12 +36,13 @@ LDB_RES ldb_open(LighDB *db,
 	    return LDB_ERR_HEADER;
 	}
     //calculate index table offset
-    db->index_offset = br + db->h.header_size;
+    db->index_offset = sizeof(db->h) + db->h.header_size;
     //open data file
-    if(ldb_io_open(&db->file_data, path_data)) {
+    if(ldb_io_open(&db->file_data, path_data, 0)) {
 	ldb_io_close(&db->file_data);
 	return LDB_ERR_IO;
     }
+    printf("it sz %d, count %d\n", db->h.item_size, db->h.count);
 
     uint8_t buf[10];
     //read first 10 bytes in data file
@@ -113,6 +113,8 @@ LDB_RES ldb_set_buffer(LighDB *db, uint32_t *buffer, uint32_t size)
 #if !LDB_READ_ONLY
 static LDB_RES update_sysheader(LighDB *db)
 {
+    if(ldb_io_lseek(&db->file_index, 0, SEEK_SET))
+	return LDB_ERR_IO;
     uint32_t bw;
     if(ldb_io_write(&db->file_index,
 		    (uint8_t*)&db->h, sizeof(db->h), &bw)) {
@@ -138,8 +140,8 @@ LDB_RES ldb_create(LighDB *db, char *path_data, char *path_index,
 	return LDB_ERR;
 
     //open index file
-    if(ldb_io_open(&db->file_index, path_index)) {
-	ldb_io_close(&db->file_index);
+    if(ldb_io_open(&db->file_index, path_index, 1)) {
+	
 	return LDB_ERR_IO;
     }
     //set db opened
@@ -157,21 +159,23 @@ LDB_RES ldb_create(LighDB *db, char *path_data, char *path_index,
     //write db header
     if((r = update_sysheader(db)))
 	return r;
-    //write user header
-    if(ldb_io_write(&db->file_index,
-		    header, header_size, &bw)) {
-	ldb_io_close(&db->file_index);
-	return LDB_ERR_IO;
-    }
-    //check written user header size
-    if(header_size != bw) {
-	ldb_io_close(&db->file_index);
-	return LDB_ERR_IO;
+    if(header != 0 && header_size != 0)
+    {
+	//write user header
+	if(ldb_io_write(&db->file_index,
+			header, header_size, &bw)) {
+	    ldb_io_close(&db->file_index);
+	    return LDB_ERR_IO;
+	}
+	//check written user header size
+	if(header_size != bw) {
+	    ldb_io_close(&db->file_index);
+	    return LDB_ERR_IO;
+	}
     }
     
     //open data file
-    if(ldb_io_open(&db->file_data, path_data)) {
-	ldb_io_close(&db->file_data);
+    if(ldb_io_open(&db->file_data, path_data, 1)) {
 	return LDB_ERR_IO;
     }
     //write version in data file
@@ -183,11 +187,11 @@ LDB_RES ldb_create(LighDB *db, char *path_data, char *path_index,
     }
 
     //calculate index table offset
-    db->index_offset = bw + header_size;
+    db->index_offset = sizeof(db->h) + header_size;
     db->data_offset = 10;
     
     //calculate buffer size
-    *buffer_size = db->h.item_size * 2 + LDB_MIN_ID_BUFF;
+    *buffer_size = LDB_MIN_ID_BUFF;
     //clear buffer pointers
     db->buffer_id = 0;
     db->buffer_id_size = 0;
@@ -316,15 +320,16 @@ LDB_RES ldb_add(LighDB *db,
 	return LDB_ERR_IO;
     //add in ID table
     if(ldb_io_lseek(&db->file_index,
-		    db->data_offset +
-		    (db->h.item_size * db->h.count),
+		    db->index_offset +
+		    (4 * db->h.count),
 		    SEEK_SET))
 	return LDB_ERR_IO;
     if(ldb_io_write(&db->file_index, (uint8_t*)&id, sizeof(uint32_t), &bw))
 	return LDB_ERR_IO;
 
     //return new index
-    *newindex = db->h.count;
+    if(newindex != 0)
+	*newindex = db->h.count;
     
     db->h.count ++;
     //update count in db header

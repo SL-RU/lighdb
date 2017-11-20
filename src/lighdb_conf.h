@@ -2,7 +2,8 @@
 #define LIGHDB_CONF_H
 
 //change for your file system library. F.e. for ElmChan's FatFS define LDB_FILE FIL. For STDIO it will be int
-#define LDB_FILE int
+#include <stdio.h>
+#define LDB_FILE FILE*
 
 //Will library be read only
 #define LDB_READ_ONLY 0

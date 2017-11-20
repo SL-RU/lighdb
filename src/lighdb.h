@@ -8,6 +8,7 @@
 #define LIGHDB_VERSION "001"
 
 #include <stdint.h>
+#include "lighdb_conf.h"
 
 #ifndef LDB_FILE //FILE type
 #define LDB_FILE int
@@ -43,17 +44,17 @@
 #endif
 
 typedef enum {
-    LDB_OK = 0,          //Everything ok
-    LDB_ERR,             //Undefined error
-    LDB_ERR_IO,          //Error in IO function
-    LDB_BIG_INDEX,       //Index >= total count
-    LDB_ERR_NO_ID,       //No ID in ID table
-    LDB_ERR_HEADER,      //Error in database header
-    LDB_ERR_NO_BUFFER,   //if buffer wasn't been set
-    LDB_ERR_NOT_OPENED,  //if db wasn't been opened
-    LDB_OK_SMALL_BUFFER, //Small buffer, but it is okay
-    LDB_ERR_SMALL_BUFFER,//Small buffer size in argument
-    LDB_ERR_ZERO_POINTER,//Zero pointer in arg
+    LDB_OK = 0,          // 0 Everything ok
+    LDB_ERR,             // 1 Undefined error
+    LDB_ERR_IO,          // 2 Error in IO function
+    LDB_BIG_INDEX,       // 3 Index >= total count
+    LDB_ERR_NO_ID,       // 4 No ID in ID table
+    LDB_ERR_HEADER,      // 5 Error in database header
+    LDB_ERR_NO_BUFFER,   // 6 if buffer wasn't been set
+    LDB_ERR_NOT_OPENED,  // 7 if db wasn't been opened
+    LDB_OK_SMALL_BUFFER, // 8 Small buffer, but it is okay
+    LDB_ERR_SMALL_BUFFER,// 9 Small buffer size in argument
+    LDB_ERR_ZERO_POINTER,// 10 Zero pointer in arg
 } LDB_RES;
 
 
@@ -64,9 +65,10 @@ typedef enum {
  *
  * @param file file object or descriptor
  * @param path path to file
+ * @param create if == 1 then create new file or clear existing. If == 0 then only read
  * @return result LDB_OK or LDB_ERR
  */
-LDB_RES ldb_io_open (LDB_FILE *file, char *path);
+LDB_RES ldb_io_open (LDB_FILE *file, char *path, uint8_t create);
 /**
  * Read data from file to buffer
  *
