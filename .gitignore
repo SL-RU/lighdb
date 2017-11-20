@@ -117,3 +117,6 @@ dkms.conf
 
 *.fuse*
 *.bak
+
+*CMake*
+CMake*

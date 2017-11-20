@@ -111,6 +111,22 @@ LDB_RES ldb_set_buffer(LighDB *db, uint32_t *buffer, uint32_t size)
     return LDB_OK;
 }
 #if !LDB_READ_ONLY
+static LDB_RES update_sysheader(LighDB *db)
+{
+    uint32_t bw;
+    if(ldb_io_write(&db->file_index,
+		    (uint8_t*)&db->h, sizeof(db->h), &bw)) {
+	ldb_io_close(&db->file_index);
+	return LDB_ERR_IO;
+    }
+    //check written db header size
+    if(sizeof(db->h) != bw) {
+	ldb_io_close(&db->file_index);
+	return LDB_ERR_IO;
+    }
+   
+    return LDB_OK;
+}
 LDB_RES ldb_create(LighDB *db, char *path_data, char *path_index,
 		   uint32_t size,
 		   uint32_t header_size, uint8_t *header,
@@ -137,17 +153,10 @@ LDB_RES ldb_create(LighDB *db, char *path_data, char *path_index,
     db->h.count = 0;
     
     uint32_t bw;
+    LDB_RES r;
     //write db header
-    if(ldb_io_write(&db->file_index,
-		    (uint8_t*)&db->h, sizeof(db->h), &bw)) {
-	ldb_io_close(&db->file_index);
-	return LDB_ERR_IO;
-    }
-    //check written db header size
-    if(sizeof(db->h) != bw) {
-	ldb_io_close(&db->file_index);
-	return LDB_ERR_IO;
-    }
+    if((r = update_sysheader(db)))
+	return r;
     //write user header
     if(ldb_io_write(&db->file_index,
 		    header, header_size, &bw)) {
@@ -296,6 +305,7 @@ LDB_RES ldb_add(LighDB *db,
     if(size < db->h.item_size)
 	return LDB_ERR_SMALL_BUFFER;
 
+    //add to data
     if(ldb_io_lseek(&db->file_data,
 		    db->data_offset +
 		    (db->h.item_size * db->h.count),
@@ -304,13 +314,30 @@ LDB_RES ldb_add(LighDB *db,
     uint32_t bw;
     if(ldb_io_write(&db->file_data, data, db->h.item_size, &bw))
 	return LDB_ERR_IO;
+    //add in ID table
+    if(ldb_io_lseek(&db->file_index,
+		    db->data_offset +
+		    (db->h.item_size * db->h.count),
+		    SEEK_SET))
+	return LDB_ERR_IO;
+    if(ldb_io_write(&db->file_index, (uint8_t*)&id, sizeof(uint32_t), &bw))
+	return LDB_ERR_IO;
 
+    //return new index
+    *newindex = db->h.count;
     
+    db->h.count ++;
+    //update count in db header
+    if((r = update_sysheader(db)))
+	return r;
     
     return LDB_OK;    
 }
 #endif
-LDB_RES ldb_find_by_id(LighDB *db, uint32_t *count,
+LDB_RES ldb_find_by_id(LighDB *db, uint32_t id,
+		       uint32_t *count,
 		       uint32_t *list, uint32_t len)
 {
+    
+    return LDB_OK;
 }
