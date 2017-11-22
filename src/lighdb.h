@@ -128,11 +128,11 @@ typedef struct {
     LDB_FILE file_data;   //file with data
     LDB_FILE file_index;   //file with index
 
-    struct {
+    struct __attribute__((packed)) {
 	char version[10];
-	uint32_t header_size; //size of header
-	uint32_t item_size;   //size of single item
-	uint32_t count;       //total count of items
+	uint32_t header_size  :32; //size of header
+	uint32_t item_size    :32; //size of single item
+	uint32_t count        :32; //total count of items
     } h;
     
     uint32_t index_offset; //offset of ID data in file_index
@@ -140,6 +140,8 @@ typedef struct {
     //buffers
     uint32_t *buffer_id;
     uint32_t buffer_id_size;
+    uint32_t buffer_id_start_index;
+    uint32_t buffer_id_count;
     
 #if LDB_MUTEX
     LDB_MUTEX_t mutex; //mutex if enabled
@@ -190,7 +192,7 @@ LDB_RES ldb_set_buffer(LighDB *db, uint32_t *buffer, uint32_t size);
  * @param buffer_size returns buffer size for DB functionality. You need to set buffer using ldb_set_buffer(); Size equals [N] bytes. N byte for buffer of indexes, more is better. But not less then LDB_MIN_ID_BUFF bytes
  * @return result LDB_OK, LDB_ERR_IO
  */
-LDB_RES ldb_create(LighDB *db, char *path_data, char *path_index,
+LDB_RES ldb_create(LighDB *db, char *path_index, char *path_data,
 		   uint32_t size,
 		   uint32_t header_size, uint8_t *header,
 		   uint32_t* buffer_size);

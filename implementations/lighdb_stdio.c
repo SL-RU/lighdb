@@ -16,25 +16,25 @@ LDB_RES ldb_io_open (LDB_FILE *file, char *path, uint8_t create)
 }
 LDB_RES ldb_io_read (LDB_FILE *file, uint8_t *buf, uint32_t btr, uint32_t *br)
 {
-    ssize_t r = fread(buf, 1, btr, *file);
-    if(r != btr)
+    ssize_t r = fread(buf, btr, 1, *file);
+    if(r != 1)
 	return LDB_ERR;
-    *br = r;
+    *br = btr;
     return LDB_OK;
 }
 LDB_RES ldb_io_write (LDB_FILE *file, uint8_t *buf, uint32_t btw, uint32_t *bw)
 {
-    ssize_t r = fwrite(buf, 1, btw, *file);
-    if(r < 0)
+    ssize_t r = fwrite(buf, btw, 1, *file);
+    if(r != 1)
 	return LDB_ERR;
-    *bw = r;
+    *bw = btw;
     return LDB_OK;
 }
 LDB_RES ldb_io_lseek(LDB_FILE *file, uint32_t offset, int whence)
 {
     ssize_t r = fseek(*file, offset, whence);
     if(r < 0)
-	return LDB_ERR;
+    	return LDB_ERR;
     return LDB_OK;
 }
 LDB_RES ldb_io_close(LDB_FILE *file)

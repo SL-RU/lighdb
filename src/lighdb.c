@@ -42,7 +42,6 @@ LDB_RES ldb_open(LighDB *db,
 	ldb_io_close(&db->file_data);
 	return LDB_ERR_IO;
     }
-    printf("it sz %d, count %d\n", db->h.item_size, db->h.count);
 
     uint8_t buf[10];
     //read first 10 bytes in data file
@@ -66,6 +65,8 @@ LDB_RES ldb_open(LighDB *db,
 	    ldb_io_close(&db->file_data);
 	    return LDB_ERR_HEADER;
 	}
+
+    printf("%s %ld it sz %d, count %d\n", db->h.version, sizeof(db->h), db->h.item_size, db->h.count);
     
     //calculate buffer size
     *buffer_size = LDB_MIN_ID_BUFF;
@@ -129,7 +130,7 @@ static LDB_RES update_sysheader(LighDB *db)
    
     return LDB_OK;
 }
-LDB_RES ldb_create(LighDB *db, char *path_data, char *path_index,
+LDB_RES ldb_create(LighDB *db, char *path_index, char *path_data,
 		   uint32_t size,
 		   uint32_t header_size, uint8_t *header,
 		   uint32_t* buffer_size)
@@ -335,14 +336,64 @@ LDB_RES ldb_add(LighDB *db,
     //update count in db header
     if((r = update_sysheader(db)))
 	return r;
+
+    //insert id in ID table
+    if(db->buffer_id_count < db->buffer_id_size &&
+       db->buffer_id_start_index + db->buffer_id_size < db->buffer_id_count)
+    {
+	db->buffer_id[db->buffer_id_count] = id;
+    }
     
     return LDB_OK;    
 }
 #endif
+static LDB_RES load_buf(LighDB *db, uint32_t sind)
+{
+    if(sind >= db->h.count)
+	return LDB_ERR;
+    
+    db->buffer_id_start_index = sind; //set first index
+    //calculate count
+    db->buffer_id_count = db->h.count - sind; 
+    if(db->buffer_id_count > db->buffer_id_size)
+	db->buffer_id_count = db->buffer_id_size;
+    //load table
+    uint32_t br;
+    ldb_io_lseek(&db->file_index,
+		 db->index_offset + db->buffer_id_start_index * 4,
+		 SEEK_SET);
+    ldb_io_read(&db->file_index, (uint8_t*)db->buffer_id,
+		db->buffer_id_count * 4, &br);
+    if(br != db->buffer_id_count * 4)
+	return LDB_ERR_IO;
+    
+    return LDB_OK;
+}
 LDB_RES ldb_find_by_id(LighDB *db, uint32_t id,
 		       uint32_t *count,
 		       uint32_t *list, uint32_t len)
 {
+    LDB_RES r;
+    uint32_t cnt = 0;
+    if((r = chk_db(db)))
+    	return r;
+    if(len == 0)
+	return LDB_OK;
+
+    if(db->buffer_id_count == 0)
+	if((r = load_buf(db, 0)))
+	   return r;
+	
+    for (uint32_t i = db->buffer_id_start_index;
+	 i < db->buffer_id_start_index + db->buffer_id_count; i++) {
+	if(db->buffer_id[i] == id)
+	{
+	    if(list != 0 && len > cnt)
+		list[cnt] = i;
+	    cnt++;
+	}
+    }
+    *count = cnt;
     
     return LDB_OK;
 }
