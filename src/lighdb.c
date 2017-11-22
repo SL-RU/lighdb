@@ -104,7 +104,7 @@ LDB_RES ldb_set_buffer(LighDB *db, uint32_t *buffer, uint32_t size)
     if(db->opened == 0)
 	return LDB_ERR_NOT_OPENED;
 
-    if(size <= LDB_MIN_ID_BUFF)
+    if(size < LDB_MIN_ID_BUFF)
 	return LDB_ERR_SMALL_BUFFER;
 
     db->buffer_id = (uint32_t*)buffer;
@@ -374,26 +374,55 @@ LDB_RES ldb_find_by_id(LighDB *db, uint32_t id,
 		       uint32_t *list, uint32_t len)
 {
     LDB_RES r;
-    uint32_t cnt = 0;
     if((r = chk_db(db)))
     	return r;
     if(len == 0)
 	return LDB_OK;
 
+    uint32_t l = db->h.count; //how many indexes left
+    uint32_t i, was_zero;
+    
     if(db->buffer_id_count == 0)
 	if((r = load_buf(db, 0)))
-	   return r;
-	
-    for (uint32_t i = db->buffer_id_start_index;
-	 i < db->buffer_id_start_index + db->buffer_id_count; i++) {
-	if(db->buffer_id[i] == id)
-	{
-	    if(list != 0 && len > cnt)
-		list[cnt] = i;
-	    cnt++;
+	    return r;
+
+    (*count) = 0;
+    
+    //how many indexes left
+    was_zero = (db->buffer_id_start_index == 0);
+    
+    do {
+	for (i = 0; i < db->buffer_id_count; i++) {
+	    if(db->buffer_id[i] == id)
+	    {
+		if(list != 0 && len > (*count))
+		{
+		    list[(*count)] = i + db->buffer_id_start_index;
+		    if(len == (*count) + 1)
+		    {
+			(*count) ++;
+			return LDB_OK;
+		    }
+		}
+    
+		(*count) ++;
+	    }
 	}
-    }
-    *count = cnt;
+	//load next sheet of ID's table
+	if(!was_zero) {
+	    //if zero index wasn't in buffer. Load first index
+	    load_buf(db, 0);
+	    was_zero = 1;
+	    l = db->h.count;
+	} else {
+	    //load next sheet
+	    l -= db->buffer_id_count;   
+	    if(load_buf(db,
+			db->buffer_id_start_index +
+			db->buffer_id_count))
+		break;
+	}
+    } while(l != 0);
     
     return LDB_OK;
 }

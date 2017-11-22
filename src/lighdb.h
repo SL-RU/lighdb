@@ -40,7 +40,7 @@
 #endif
 
 #ifndef LDB_MIN_ID_BUFF //you can change it in settings
-#define LDB_MIN_ID_BUFF 256
+#define LDB_MIN_ID_BUFF 2
 #endif
 
 typedef enum {
