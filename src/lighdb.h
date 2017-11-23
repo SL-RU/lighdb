@@ -21,16 +21,17 @@
 #ifndef LDB_MUTEX //will be mutexes used
 #define LDB_MUTEX 0
 #endif
-#if LDB_MUTEX
-#define LDB_MUTEX_CREATE(...)
-#define LDB_MUTEX_DELETE(...)
-#define LDB_MUTEX_REQUEST(...)
-#define LDB_MUTEX_RELEASE(...)
+#if LDB_MUTEX == 0
+#define LDB_MUTEX_t void*
+#define LDB_MUTEX_CREATE(x)  ldb_return_ok(x)
+#define LDB_MUTEX_DELETE(x)  ldb_return_ok(x)
+#define LDB_MUTEX_REQUEST(x) ldb_return_ok(x)
+#define LDB_MUTEX_RELEASE(x) ldb_return_ok(x)
 #else
-#define LDB_MUTEX_CREATE(...)  ldb_mutex_create
-#define LDB_MUTEX_DELETE(...)  ldb_mutex_delete
-#define LDB_MUTEX_REQUEST(...) ldb_mutex_request_grant
-#define LDB_MUTEX_RELEASE(...) ldb_mutex_release_grant
+#define LDB_MUTEX_CREATE(x)  ldb_mutex_create(x)
+#define LDB_MUTEX_DELETE(x)  ldb_mutex_delete(x)
+#define LDB_MUTEX_REQUEST(x) ldb_mutex_request_grant(x)
+#define LDB_MUTEX_RELEASE(x) ldb_mutex_release_grant(x)
 #endif
 
 #ifndef SEEK_SET     //if fcntl.h doesn't included
@@ -55,9 +56,14 @@ typedef enum {
     LDB_OK_SMALL_BUFFER, // 8 Small buffer, but it is okay
     LDB_ERR_SMALL_BUFFER,// 9 Small buffer size in argument
     LDB_ERR_ZERO_POINTER,// 10 Zero pointer in arg
+    LDB_ERR_MUTEX,       // 11 error in mutex
 } LDB_RES;
 
 
+#if LDB_MUTEX == 0
+//for mutex no-functionality
+LDB_RES ldb_return_ok(LDB_MUTEX_t*x);
+#endif
 //You need to implement IO functions in your project. You can find samples in the implementations folder.
 //Or you can set LIGHDB_USE_STDIO
 /**
@@ -96,7 +102,7 @@ LDB_RES ldb_io_write (LDB_FILE *file, uint8_t *buf, uint32_t btw, uint32_t *bw);
  *
  * @param file file object or descriptor
  * @param offset offset in bytes
- * @param whence SEEK_SET, SEEK_CUR, SEEK_END
+ * @param whence. _ONLY_ SEEK_SET used
  * @return result LDB_OK or LDB_ERR
  */
 LDB_RES ldb_io_lseek(LDB_FILE *file, uint32_t offset, int whence);
@@ -143,9 +149,7 @@ typedef struct {
     uint32_t buffer_id_start_index;
     uint32_t buffer_id_count;
     
-#if LDB_MUTEX
     LDB_MUTEX_t mutex; //mutex if enabled
-#endif
 } LighDB;
 
 
@@ -270,9 +274,13 @@ LDB_RES ldb_add(LighDB *db,
 LDB_RES ldb_find_by_id(LighDB *db, uint32_t id,
 		       uint32_t *count,
 		       uint32_t *list, uint32_t len);
-LDB_RES ldb_get_header(LighDB *db, uint8_t *buf, uint32_t size, uint32_t *readed);
+LDB_RES ldb_get_header(LighDB *db,
+		       uint8_t *buf, uint32_t size,
+		       uint32_t *read);
 #if !LDB_READ_ONLY
-LDB_RES ldb_set_header(LighDB *db, uint8_t *buf, uint32_t size, uint32_t *written);
+LDB_RES ldb_set_header(LighDB *db,
+		       uint8_t *buf, uint32_t size,
+		       uint32_t *written);
 #endif
 #endif
 

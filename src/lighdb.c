@@ -74,6 +74,10 @@ LDB_RES ldb_open(LighDB *db,
     //clear buffer pointers
     db->buffer_id = 0;
     db->buffer_id_size = 0;
+
+    if(LDB_MUTEX_CREATE(&db->mutex))
+	return LDB_ERR_MUTEX;
+    
     return LDB_OK;
 }
 
@@ -81,19 +85,31 @@ LDB_RES ldb_close(LighDB *db)
 {
     if(db == 0)
 	return LDB_ERR_ZERO_POINTER;
+    if(LDB_MUTEX_REQUEST(&db->mutex))  //reQuest MUTEX
+	return LDB_ERR_MUTEX;	
     if(db->opened == 0)
+    {
+	LDB_MUTEX_RELEASE(&db->mutex); //reLease MUTEX
 	return LDB_ERR_NOT_OPENED;
+    }
     db->opened    = 0;
     db->buffer_id = 0;
     db->buffer_id_size = 0;
 
     if(ldb_io_close(&db->file_index)) {
 	ldb_io_close(&db->file_data);
+	LDB_MUTEX_RELEASE(&db->mutex); //reLease MUTEX
 	return LDB_ERR_IO;
     }
     if(ldb_io_close(&db->file_data))
+    {
+	LDB_MUTEX_RELEASE(&db->mutex); //reLease MUTEX
 	return LDB_ERR_IO;
-    
+    }
+    if(LDB_MUTEX_RELEASE(&db->mutex))  //reLease MUTEX
+	return LDB_ERR_MUTEX;	
+    if(LDB_MUTEX_DELETE(&db->mutex))
+	return LDB_ERR_MUTEX;	
     return LDB_OK;
 }
 
@@ -101,14 +117,19 @@ LDB_RES ldb_set_buffer(LighDB *db, uint32_t *buffer, uint32_t size)
 {
     if(db == 0 || buffer == 0)
 	return LDB_ERR_ZERO_POINTER;
-    if(db->opened == 0)
-	return LDB_ERR_NOT_OPENED;
-
     if(size < LDB_MIN_ID_BUFF)
 	return LDB_ERR_SMALL_BUFFER;
-
+    if(LDB_MUTEX_REQUEST(&db->mutex))   //reQuest MUTEX
+	return LDB_ERR_MUTEX;	
+    if(db->opened == 0)
+    {
+	LDB_MUTEX_RELEASE(&db->mutex);  //reLease MUTEX
+	return LDB_ERR_NOT_OPENED;
+    }
     db->buffer_id = (uint32_t*)buffer;
     db->buffer_id_size = size;
+    if(LDB_MUTEX_RELEASE(&db->mutex))   //reLease MUTEX
+	return LDB_ERR_MUTEX;	
     return LDB_OK;
 }
 #if !LDB_READ_ONLY
@@ -196,6 +217,10 @@ LDB_RES ldb_create(LighDB *db, char *path_index, char *path_data,
     //clear buffer pointers
     db->buffer_id = 0;
     db->buffer_id_size = 0;
+
+    if(LDB_MUTEX_CREATE(&db->mutex))
+	return LDB_ERR_MUTEX;	
+    
     return LDB_OK;
 }
 #endif
@@ -203,27 +228,46 @@ inline static LDB_RES chk_db(LighDB *db)
 {
     if(db == 0)
 	return LDB_ERR_ZERO_POINTER;
+    if(LDB_MUTEX_REQUEST(&db->mutex)) //reQuest MUTEX
+	return LDB_ERR_MUTEX;	
     if(db->opened == 0)
+    {
+	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
 	return LDB_ERR_NOT_OPENED;
+    }
     if(db->buffer_id == 0)
+    {
+	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
 	return LDB_ERR_NO_BUFFER;
+    }
     return LDB_OK;
 }
 LDB_RES ldb_get(LighDB *db, uint32_t id,
 		uint8_t *buf, uint32_t size)
 {
     LDB_RES r;
-    if((r = chk_db(db)))
+    if((r = chk_db(db)))               //reQuest MUTEX
 	return r;
 
     uint32_t index, count;
     //find first element with ID
+    if(LDB_MUTEX_RELEASE(&db->mutex))  //reLease MUTEX
+	return LDB_ERR_MUTEX;
     r = ldb_find_by_id(db, id, &count, &index, 1);
+    if(LDB_MUTEX_REQUEST(&db->mutex))  //reQuest MUTEX
+	return LDB_ERR_MUTEX;	
     if(r != LDB_OK && r != LDB_OK_SMALL_BUFFER)
+    {
+	LDB_MUTEX_RELEASE(&db->mutex); //reLease MUTEX
 	return LDB_ERR_NO_ID;
+    }
     if(count == 0) //if 0 elements found
+    {
+	LDB_MUTEX_RELEASE(&db->mutex); //reLease MUTEX
 	return LDB_ERR_NO_ID;
-    
+    }
+    if(LDB_MUTEX_RELEASE(&db->mutex))  //reLease MUTEX
+	return LDB_ERR_MUTEX;	
     return ldb_get_ind(db, index, buf, size);
 }
 
@@ -232,16 +276,28 @@ LDB_RES ldb_upd(LighDB *db, uint32_t id,
 		void *data, uint32_t size)
 {
     LDB_RES r;
-    if((r = chk_db(db)))
+    if((r = chk_db(db)))              //reQuest MUTEX
 	return r;
     
     uint32_t index, count;
     //find first element with ID
+    if(LDB_MUTEX_RELEASE(&db->mutex)) //reLease MUTEX
+	return LDB_ERR_MUTEX;	
     r = ldb_find_by_id(db, id, &count, &index, 1);
+    if(LDB_MUTEX_REQUEST(&db->mutex)) //reQuest MUTEX
+	return LDB_ERR_MUTEX;	
     if(r != LDB_OK && r != LDB_OK_SMALL_BUFFER)
+    {
+	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
 	return LDB_ERR_NO_ID;
+    }
     if(count == 0) //if 0 elements found
+    {
+	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
 	return LDB_ERR_NO_ID;
+    }
+    if(LDB_MUTEX_RELEASE(&db->mutex)) //reLease MUTEX
+	return LDB_ERR_MUTEX;	
     
     return ldb_upd_ind(db, index, data, size);
 }
@@ -261,20 +317,24 @@ LDB_RES ldb_get_ind(LighDB *db, uint32_t index,
 		    uint8_t *buf, uint32_t size)
 {
     LDB_RES r;
-    if((r = chk_db(db)))
-	return r;
     if(buf == 0)
 	return LDB_ERR_ZERO_POINTER;
+    if((r = chk_db(db)))              //reQuest MUTEX
+	return r;
     if(size < db->h.item_size)
+    {
+	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
 	return LDB_ERR_SMALL_BUFFER;
-
+    }
     
     if((r = ldb_seek_ind_data(db, index)))
 	return r;
     uint32_t br;
     if(ldb_io_read(&db->file_data, buf, db->h.item_size, &br))
+    {
+	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
 	return LDB_ERR_IO;
-
+    }
     return LDB_OK;
 }
 #if !LDB_READ_ONLY
@@ -282,19 +342,28 @@ LDB_RES ldb_upd_ind(LighDB *db, uint32_t index,
 		    void *data, uint32_t size)
 {
     LDB_RES r;
-    if((r = chk_db(db)))
-	return r;
     if(data == 0)
 	return LDB_ERR_ZERO_POINTER;
-    if(size < db->h.item_size)
-	return LDB_ERR_SMALL_BUFFER;
-
-    if((r = ldb_seek_ind_data(db, index)))
+    if((r = chk_db(db)))              //reQuest MUTEX
 	return r;
+    if(size < db->h.item_size)
+    {
+	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
+	return LDB_ERR_SMALL_BUFFER;
+    }
+    if((r = ldb_seek_ind_data(db, index)))
+    {
+	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
+	return r;
+    }
     uint32_t bw;
     if(ldb_io_write(&db->file_data, data, db->h.item_size, &bw))
+    {
+	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
 	return LDB_ERR_IO;
-    
+    }
+    if(LDB_MUTEX_RELEASE(&db->mutex))
+	return LDB_ERR_MUTEX;	      //reLease MUTEX
     return LDB_OK;    
 }
 
@@ -303,30 +372,40 @@ LDB_RES ldb_add(LighDB *db,
 		uint32_t id, uint32_t *newindex)
 {
     LDB_RES r;
-    if((r = chk_db(db)))
-    	return r;
     if(data == 0)
 	return LDB_ERR_ZERO_POINTER;
-    if(size < db->h.item_size)
+    if((r = chk_db(db)))              //reQuest MUTEX
+    	return r;
+    if(size < db->h.item_size) {
+	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
 	return LDB_ERR_SMALL_BUFFER;
+    }
 
     //add to data
     if(ldb_io_lseek(&db->file_data,
 		    db->data_offset +
 		    (db->h.item_size * db->h.count),
-		    SEEK_SET))
+		    SEEK_SET)) {
+	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
 	return LDB_ERR_IO;
+    }
     uint32_t bw;
-    if(ldb_io_write(&db->file_data, data, db->h.item_size, &bw))
+    if(ldb_io_write(&db->file_data, data, db->h.item_size, &bw)) {
+	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
 	return LDB_ERR_IO;
+    }
     //add in ID table
     if(ldb_io_lseek(&db->file_index,
 		    db->index_offset +
 		    (4 * db->h.count),
-		    SEEK_SET))
+		    SEEK_SET)) {
+	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
 	return LDB_ERR_IO;
-    if(ldb_io_write(&db->file_index, (uint8_t*)&id, sizeof(uint32_t), &bw))
+    }
+    if(ldb_io_write(&db->file_index, (uint8_t*)&id, sizeof(uint32_t), &bw)) {
+	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
 	return LDB_ERR_IO;
+    }
 
     //return new index
     if(newindex != 0)
@@ -334,8 +413,10 @@ LDB_RES ldb_add(LighDB *db,
     
     db->h.count ++;
     //update count in db header
-    if((r = update_sysheader(db)))
+    if((r = update_sysheader(db))) {
+	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
 	return r;
+    }
 
     //insert id in ID table
     if(db->buffer_id_count < db->buffer_id_size &&
@@ -343,7 +424,9 @@ LDB_RES ldb_add(LighDB *db,
     {
 	db->buffer_id[db->buffer_id_count] = id;
     }
-    
+    if(LDB_MUTEX_RELEASE(&db->mutex)) //reLease MUTEX
+	return LDB_ERR_MUTEX;	
+
     return LDB_OK;    
 }
 #endif
@@ -374,17 +457,19 @@ LDB_RES ldb_find_by_id(LighDB *db, uint32_t id,
 		       uint32_t *list, uint32_t len)
 {
     LDB_RES r;
-    if((r = chk_db(db)))
-    	return r;
     if(len == 0)
 	return LDB_OK;
+    if((r = chk_db(db)))                  //reQuest MUTEX
+    	return r;
 
     uint32_t l = db->h.count; //how many indexes left
     uint32_t i, was_zero;
     
     if(db->buffer_id_count == 0)
-	if((r = load_buf(db, 0)))
+	if((r = load_buf(db, 0))) {
+	    LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
 	    return r;
+	}
 
     (*count) = 0;
     
@@ -401,6 +486,8 @@ LDB_RES ldb_find_by_id(LighDB *db, uint32_t id,
 		    if(len == (*count) + 1)
 		    {
 			(*count) ++;
+			//reLease MUTEX
+			LDB_MUTEX_RELEASE(&db->mutex);
 			return LDB_OK;
 		    }
 		}
@@ -423,6 +510,79 @@ LDB_RES ldb_find_by_id(LighDB *db, uint32_t id,
 		break;
 	}
     } while(l != 0);
+
+    if(LDB_MUTEX_RELEASE(&db->mutex)) //reLease MUTEX
+	return LDB_ERR_MUTEX;	
+
+    return LDB_OK;
+}
+LDB_RES ldb_get_header(LighDB *db,
+		       uint8_t *buf, uint32_t size,
+		       uint32_t *read)
+{
+    LDB_RES r;
+    if(buf == 0 || size == 0)
+	return LDB_ERR_ZERO_POINTER;
+    if((r = chk_db(db)))              //reQuest MUTEX
+	return r;
+
+    uint32_t br;
+    if(size > db->h.header_size)
+	size = db->h.header_size;
+    //read user header
+    if(ldb_io_read(&db->file_index,
+		    buf, size, &br)) {
+	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
+	return LDB_ERR_IO;
+    }
+    //check read user header size
+    if(size != br) {
+	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
+	return LDB_ERR_IO;
+    }
+    if(LDB_MUTEX_RELEASE(&db->mutex)) //reLease MUTEX
+	return LDB_ERR_MUTEX;	
+
+    if(read != 0)
+	*read = 0;
     
     return LDB_OK;
 }
+#if !LDB_READ_ONLY
+LDB_RES ldb_set_header(LighDB *db, uint8_t *buf, uint32_t size, uint32_t *written)
+{
+    LDB_RES r;
+    if(buf == 0 || size == 0)
+	return LDB_ERR_ZERO_POINTER;
+    if((r = chk_db(db)))              //reQuest MUTEX
+	return r;
+
+    uint32_t bw;
+    if(size > db->h.header_size)
+	size = db->h.header_size;
+    //write user header
+    if(ldb_io_write(&db->file_index,
+		    buf, size, &bw)) {
+	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
+	return LDB_ERR_IO;
+    }
+    //check written user header size
+    if(size != bw) {
+	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
+	return LDB_ERR_IO;
+    }
+    if(LDB_MUTEX_RELEASE(&db->mutex)) //reLease MUTEX
+	return LDB_ERR_MUTEX;	
+
+    if(written != 0)
+	*written = size;
+    
+    return LDB_OK;
+}
+#endif
+#if LDB_MUTEX == 0
+LDB_RES ldb_return_ok(LDB_MUTEX_t *x) {
+    //REMOVE F**** unused varible
+    return LDB_OK + ((long int)x != (long int)x*1);
+}
+#endif

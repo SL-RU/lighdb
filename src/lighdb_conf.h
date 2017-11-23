@@ -12,9 +12,10 @@
 #define LDB_MUTEX 0
 
 #if LDB_MUTEX == 1
-#include "FreeRTOS.h"
-#include "semphr.h"
-#define LDB_MUTEX_t xSemaphoreHandle //change for your OS
+//#include "FreeRTOS.h"
+//#include "semphr.h"
+#include <stdint.h>
+#define LDB_MUTEX_t int//xSemaphoreHandle //change for your OS
 //implement that functions for your OS
 
 //create mutex object
