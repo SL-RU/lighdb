@@ -3,10 +3,9 @@
 static char ldb_ver[] = "LighDB"LIGHDB_VERSION;
 
 LDB_RES ldb_open(LighDB *db,
-		 char *path_index, char *path_data,
-		 uint32_t* buffer_size)
+		 char *path_index, char *path_data)
 {
-    if(db == 0 || path_index == 0 || path_data == 0 || buffer_size == 0)
+    if(db == 0 || path_index == 0 || path_data == 0)
 	return LDB_ERR_ZERO_POINTER;
 
     //open index file
@@ -68,8 +67,6 @@ LDB_RES ldb_open(LighDB *db,
 
     printf("%s %ld it sz %d, count %d\n", db->h.version, sizeof(db->h), db->h.item_size, db->h.count);
     
-    //calculate buffer size
-    *buffer_size = LDB_MIN_ID_BUFF;
     db->data_offset = 10;
     //clear buffer pointers
     db->buffer_id = 0;
@@ -153,10 +150,9 @@ static LDB_RES update_sysheader(LighDB *db)
 }
 LDB_RES ldb_create(LighDB *db, char *path_index, char *path_data,
 		   uint32_t size,
-		   uint32_t header_size, uint8_t *header,
-		   uint32_t* buffer_size)
+		   uint32_t header_size, uint8_t *header)
 {
-    if(db == 0 || path_index == 0 || path_data == 0 || buffer_size == 0)
+    if(db == 0 || path_index == 0 || path_data == 0)
 	return LDB_ERR_ZERO_POINTER;
     if(size == 0)
 	return LDB_ERR;
@@ -212,8 +208,6 @@ LDB_RES ldb_create(LighDB *db, char *path_index, char *path_data,
     db->index_offset = sizeof(db->h) + header_size;
     db->data_offset = 10;
     
-    //calculate buffer size
-    *buffer_size = LDB_MIN_ID_BUFF;
     //clear buffer pointers
     db->buffer_id = 0;
     db->buffer_id_size = 0;

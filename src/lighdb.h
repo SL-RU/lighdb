@@ -155,17 +155,14 @@ typedef struct {
 
 
 /**
- * Open existing DB
+ * Open existing DB. AFTER open call ldb_set_buffer()
  *
  * @param db pointer to DB structure
  * @param path_index path to index file of DB
  * @param path_data path to data file of DB
- * @param buffer_size returns buffer size for DB functionality. You need to set buffer using ldb_set_buffer(); Size equals [N] bytes. N byte for buffer of indexes, more is better. But not less then LDB_MIN_ID_BUFF bytes
  * @return result LDB_OK, LDB_ERR, LDB_ERR_IO
  */
-LDB_RES ldb_open(LighDB *db,
-		 char *path_index, char *path_data,
-		 uint32_t* buffer_size);
+LDB_RES ldb_open(LighDB *db, char *path_index, char *path_data);
 
 /**
  * Close opened DB. After DB buffer doesn't required anymore.
@@ -185,7 +182,7 @@ LDB_RES ldb_close(LighDB *db);
 LDB_RES ldb_set_buffer(LighDB *db, uint32_t *buffer, uint32_t size);
 #if !LDB_READ_ONLY
 /**
- * Create new database
+ * Create new database. AFTER CREATE call ldb_set_buffer()
  *
  * @param db pointer to DB structure
  * @param path_data path to data DB file
@@ -193,13 +190,11 @@ LDB_RES ldb_set_buffer(LighDB *db, uint32_t *buffer, uint32_t size);
  * @param size size of a single item's data
  * @param header_size size of header
  * @param header header buffer
- * @param buffer_size returns buffer size for DB functionality. You need to set buffer using ldb_set_buffer(); Size equals [N] bytes. N byte for buffer of indexes, more is better. But not less then LDB_MIN_ID_BUFF bytes
  * @return result LDB_OK, LDB_ERR_IO
  */
 LDB_RES ldb_create(LighDB *db, char *path_index, char *path_data,
 		   uint32_t size,
-		   uint32_t header_size, uint8_t *header,
-		   uint32_t* buffer_size);
+		   uint32_t header_size, uint8_t *header);
 #endif
 /**
  * Get data from first found item by ID
