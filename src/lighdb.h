@@ -53,10 +53,9 @@ typedef enum {
     LDB_ERR_HEADER,      // 5 Error in database header
     LDB_ERR_NO_BUFFER,   // 6 if buffer wasn't been set
     LDB_ERR_NOT_OPENED,  // 7 if db wasn't been opened
-    LDB_OK_SMALL_BUFFER, // 8 Small buffer, but it is okay
-    LDB_ERR_SMALL_BUFFER,// 9 Small buffer size in argument
-    LDB_ERR_ZERO_POINTER,// 10 Zero pointer in arg
-    LDB_ERR_MUTEX,       // 11 error in mutex
+    LDB_ERR_SMALL_BUFFER,// 8 Small buffer size in argument
+    LDB_ERR_ZERO_POINTER,// 9 Zero pointer in arg
+    LDB_ERR_MUTEX,       // 10 error in mutex
 } LDB_RES;
 
 

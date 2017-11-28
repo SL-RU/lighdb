@@ -250,7 +250,7 @@ LDB_RES ldb_get(LighDB *db, uint32_t id,
     r = ldb_find_by_id(db, id, &count, &index, 1);
     if(LDB_MUTEX_REQUEST(&db->mutex))  //reQuest MUTEX
 	return LDB_ERR_MUTEX;	
-    if(r != LDB_OK && r != LDB_OK_SMALL_BUFFER)
+    if(r != LDB_OK)
     {
 	LDB_MUTEX_RELEASE(&db->mutex); //reLease MUTEX
 	return LDB_ERR_NO_ID;
@@ -280,7 +280,7 @@ LDB_RES ldb_upd(LighDB *db, uint32_t id,
     r = ldb_find_by_id(db, id, &count, &index, 1);
     if(LDB_MUTEX_REQUEST(&db->mutex)) //reQuest MUTEX
 	return LDB_ERR_MUTEX;	
-    if(r != LDB_OK && r != LDB_OK_SMALL_BUFFER)
+    if(r != LDB_OK)
     {
 	LDB_MUTEX_RELEASE(&db->mutex);//reLease MUTEX
 	return LDB_ERR_NO_ID;
